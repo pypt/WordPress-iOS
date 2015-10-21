@@ -31,7 +31,7 @@ pod 'NSObject-SafeExpectations', '0.0.2'
 pod 'Simperium', '0.8.3'
 pod 'WordPressApi', :git => "https://github.com/wordpress-mobile/WordPress-API-iOS.git"
 pod 'WordPress-iOS-Shared', '0.4.4'
-pod 'WordPress-iOS-Editor', :git => 'https://github.com/wordpress-mobile/WordPress-Editor-iOS.git', :commit => 'cae3901ad1e544a2f2e7952a719c3f026036da8a'
+pod 'WordPress-iOS-Editor', :git => 'https://github.com/wordpress-mobile/WordPress-Editor-iOS.git', :commit => 'a9b5263797c28fc4c0fd9c059aa28f1e947be8a0'
 pod 'WordPressCom-Stats-iOS', '0.4.8'
 pod 'WordPressCom-Analytics-iOS', '0.0.38'
 pod 'WordPress-AppbotX', :git => 'https://github.com/wordpress-mobile/appbotx.git', :commit => '87bae8c770cfc4e053119f2d00f76b2f653b26ce'
