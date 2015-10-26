@@ -76,7 +76,6 @@ NSString *const kWPEditorConfigURLParamAvailable = @"available";
 NSString *const kWPEditorConfigURLParamEnabled = @"enabled";
 
 NS_ENUM(NSUInteger, WPPostViewControllerActionSheet) {
-    WPPostViewControllerActionSheetSaveOnExit = 201,
     WPPostViewControllerActionSheetCancelUpload = 202,
     WPPostViewControllerActionSheetRetryUpload = 203,
     WPPostViewControllerActionSheetCancelVideoUpload = 204,
@@ -867,37 +866,54 @@ EditImageDetailsViewControllerDelegate
 
 - (void)showPostHasChangesActionSheet
 {
-	UIActionSheet *actionSheet;
-	if (![self.post.original.status isEqualToString:PostStatusDraft] && ![self isPostLocal]) {
+    UITraitCollection *traits = self.navigationController.traitCollection;
+    UIAlertController *alertController;
+    NSString *titleText = NSLocalizedString(@"You have unsaved changes.", @"Title of message with options that shown when there are unsaved changes and the author is trying to move away from the post.");
+    NSString *saveOrUpdateText = nil;
+    if (![self.post.original.status isEqualToString:PostStatusDraft] && ![self isPostLocal]) {
         // The post is already published in the server or it was intended to be and failed: Discard changes or keep editing
-		actionSheet = [[UIActionSheet alloc] initWithTitle:NSLocalizedString(@"You have unsaved changes.", @"Title of message with options that shown when there are unsaved changes and the author is trying to move away from the post.")
-												  delegate:self
-                                         cancelButtonTitle:NSLocalizedString(@"Keep Editing", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
-                                    destructiveButtonTitle:NSLocalizedString(@"Discard", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
-										 otherButtonTitles:nil];
+        saveOrUpdateText = nil;
     } else if ([self isPostLocal]) {
         // The post is a local draft or an autosaved draft: Discard or Save
-        actionSheet = [[UIActionSheet alloc] initWithTitle:NSLocalizedString(@"You have unsaved changes.", @"Title of message with options that shown when there are unsaved changes and the author is trying to move away from the post.")
-                                                  delegate:self
-                                         cancelButtonTitle:NSLocalizedString(@"Keep Editing", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
-                                    destructiveButtonTitle:NSLocalizedString(@"Discard", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
-                                         otherButtonTitles:NSLocalizedString(@"Save Draft", @"Button shown if there are unsaved changes and the author is trying to move away from the post."), nil];
+        saveOrUpdateText = NSLocalizedString(@"Save Draft", @"Button shown if there are unsaved changes and the author is trying to move away from the post.");
     } else {
-        // The post was already a draft
-        actionSheet = [[UIActionSheet alloc] initWithTitle:NSLocalizedString(@"You have unsaved changes.", @"Title of message with options that shown when there are unsaved changes and the author is trying to move away from the post.")
-                                                  delegate:self
-                                         cancelButtonTitle:NSLocalizedString(@"Keep Editing", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
-                                    destructiveButtonTitle:NSLocalizedString(@"Discard", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
-                                         otherButtonTitles:NSLocalizedString(@"Update Draft", @"Button shown if there are unsaved changes and the author is trying to move away from an already published/saved post."), nil];
+        saveOrUpdateText = NSLocalizedString(@"Update Draft", @"Button shown if there are unsaved changes and the author is trying to move away from an already published/saved post.");
+    }
+
+    if (traits.userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+        alertController = [UIAlertController alertControllerWithTitle:titleText
+                                                              message:nil
+                                                       preferredStyle:UIAlertControllerStyleAlert];
+    } else {
+        alertController = [UIAlertController alertControllerWithTitle:titleText
+                                                              message:nil
+                                                       preferredStyle:UIAlertControllerStyleActionSheet];
     }
     
-    actionSheet.tag = WPPostViewControllerActionSheetSaveOnExit;
-    actionSheet.actionSheetStyle = UIActionSheetStyleAutomatic;
-    if (![self isViewHorizontallyCompact]) {
-        [actionSheet showFromBarButtonItem:self.currentCancelButton animated:YES];
-    } else {
-        [actionSheet showInView:[UIApplication sharedApplication].keyWindow];
+    UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"Keep Editing", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
+                                                           style:UIAlertActionStyleCancel
+                                                         handler:^(UIAlertAction *action){
+                                                             [self actionSheetKeepEditingButtonPressed];
+                                                         }];
+    [alertController addAction:cancelAction];
+    
+    UIAlertAction *discardAction = [UIAlertAction actionWithTitle:NSLocalizedString(@"Discard", @"Button shown if there are unsaved changes and the author is trying to move away from the post.")
+                                                           style:UIAlertActionStyleDestructive
+                                                         handler:^(UIAlertAction *action){
+                                                             [self actionSheetDiscardButtonPressed];
+                                                         }];
+    [alertController addAction:discardAction];
+    
+    if (saveOrUpdateText){
+        UIAlertAction *saveAction = [UIAlertAction actionWithTitle:saveOrUpdateText
+                                                             style:UIAlertActionStyleDefault
+                                                           handler:^(UIAlertAction *action){
+                                                               [self actionSheetSaveDraftButtonPressed];
+                                                           }];
+        [alertController addAction:saveAction];
     }
+    
+    [self.navigationController presentViewController:alertController animated:YES completion:nil];
 }
 
 - (void)startEditing
@@ -1946,15 +1962,6 @@ EditImageDetailsViewControllerDelegate
 - (void)actionSheet:(UIActionSheet *)actionSheet didDismissWithButtonIndex:(NSInteger)buttonIndex {
     
     switch ([actionSheet tag]){
-        case(WPPostViewControllerActionSheetSaveOnExit): {
-            if (buttonIndex == actionSheet.destructiveButtonIndex) {
-                [self actionSheetDiscardButtonPressed];
-            } else if (buttonIndex == actionSheet.cancelButtonIndex) {
-                [self actionSheetKeepEditingButtonPressed];
-            } else if (buttonIndex == actionSheet.firstOtherButtonIndex) {
-                [self actionSheetSaveDraftButtonPressed];
-            }
-        } break;
         case (WPPostViewControllerActionSheetCancelUpload): {
             if (buttonIndex == actionSheet.destructiveButtonIndex){
                 [self cancelUploadOfMediaWithId:self.selectedMediaID];
