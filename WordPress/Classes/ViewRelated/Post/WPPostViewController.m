@@ -618,7 +618,7 @@ EditImageDetailsViewControllerDelegate
 {
     if (!self.wasEditButtonOnboardingShown) {
         CGFloat xValue = CGRectGetMaxX(self.view.frame) - NavigationBarButtonRect.size.width;
-        if (IS_IPAD) {
+        if (![self isViewHorizontallyCompact]) {
             xValue -= 20.0;
         } else {
             xValue -= 10.0;
@@ -670,14 +670,15 @@ EditImageDetailsViewControllerDelegate
 
 - (void)showBlogSelector
 {
-    if (IS_IPAD && self.blogSelectorPopover.isPopoverVisible) {
+    if (![self isViewHorizontallyCompact] && self.blogSelectorPopover.isPopoverVisible) {
         [self.blogSelectorPopover dismissPopoverAnimated:YES];
         self.blogSelectorPopover = nil;
     }
     
     void (^dismissHandler)() = ^(void) {
-        if (IS_IPAD) {
+        if (self.blogSelectorPopover) {
             [self.blogSelectorPopover dismissPopoverAnimated:YES];
+            self.blogSelectorPopover = nil;
         } else {
             self.dismissingBlogPicker = YES;
             [self dismissViewControllerAnimated:YES completion:nil];
@@ -734,7 +735,7 @@ EditImageDetailsViewControllerDelegate
     navController.navigationBar.translucent = NO;
     navController.navigationBar.barStyle = UIBarStyleBlack;
     
-    if (IS_IPAD) {
+    if (![self isViewHorizontallyCompact]) {
         vc.preferredContentSize = CGSizeMake(320.0, 500);
         self.blogSelectorPopover = [[UIPopoverController alloc] initWithContentViewController:navController];
         self.blogSelectorPopover.backgroundColor = [WPStyleGuide newKidOnTheBlockBlue];
@@ -892,7 +893,7 @@ EditImageDetailsViewControllerDelegate
     
     actionSheet.tag = WPPostViewControllerActionSheetSaveOnExit;
     actionSheet.actionSheetStyle = UIActionSheetStyleAutomatic;
-    if (IS_IPAD) {
+    if (![self isViewHorizontallyCompact]) {
         [actionSheet showFromBarButtonItem:self.currentCancelButton animated:YES];
     } else {
         [actionSheet showInView:[UIApplication sharedApplication].keyWindow];
