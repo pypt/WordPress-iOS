@@ -25,10 +25,10 @@ const NSInteger BlogDetailsRowStats = 2;
 const NSInteger BlogDetailsRowBlogPosts = 0;
 const NSInteger BlogDetailsRowPages = 1;
 const NSInteger BlogDetailsRowComments = 2;
-
 const NSInteger BlogDetailsRowSharing = 0;
-const NSInteger BlogDetailsRowEditSite = 1;
-const NSInteger BlogDetailsRowThemes = 2;
+const NSInteger BlogDetailsRowPeople = 1;
+const NSInteger BlogDetailsRowEditSite = 2;
+const NSInteger BlogDetailsRowThemes = 0;
 
 typedef NS_ENUM(NSInteger, TableSectionContentType) {
     TableViewSectionGeneralType = 0,
@@ -146,11 +146,17 @@ NSInteger const BlogDetailsRowCountForSectionAppearance = 1;
         AccountService *acctService = [[AccountService alloc] initWithManagedObjectContext:context];
         [acctService updateUserDetailsForAccount:self.blog.account success:nil failure:nil];
     }
-    
-    if ([self.blog supports:BlogFeatureSharing])
-        self.configurationRows = @[@(BlogDetailsRowSharing), @(BlogDetailsRowEditSite)];
-    else
-        self.configurationRows = @[@(BlogDetailsRowEditSite)];
+
+    NSMutableArray *marr = [NSMutableArray array];
+    if ([self.blog supports:BlogFeatureSharing]) {
+        [marr addObject:@(BlogDetailsRowSharing)];
+    }
+#ifdef WP_PEOPLE_ENABLED
+    [marr addObject:@(BlogDetailsRowPeople)];
+#endif
+    [marr addObject:@(BlogDetailsRowEditSite)];
+
+    self.configurationRows = [NSArray arrayWithArray:marr];
 
     [[NSNotificationCenter defaultCenter] addObserver:self
                                              selector:@selector(handleDataModelChange:)
@@ -299,19 +305,24 @@ NSInteger const BlogDetailsRowCountForSectionAppearance = 1;
             break;
         case TableViewSectionConfigurationType: {
             NSInteger configurationRow = [self.configurationRows[indexPath.row] integerValue];
-        	switch (configurationRow) {
-            	case BlogDetailsRowSharing:
-                	cell.textLabel.text = NSLocalizedString(@"Sharing", @"Sharing option in the blog details");
-                	cell.imageView.image = [UIImage imageNamed:@"icon-menu-sharing"];
-                	break;
-            	case BlogDetailsRowEditSite:
-                	cell.textLabel.text = NSLocalizedString(@"Settings", nil);
-                	cell.imageView.image = [UIImage imageNamed:@"icon-menu-settings"];
-                	break;
-            	default:
-                	break;
-        	}
-            }break;
+            switch (configurationRow) {
+                case BlogDetailsRowSharing:
+                    cell.textLabel.text = NSLocalizedString(@"Sharing", @"Sharing option in the blog details");
+                    cell.imageView.image = [UIImage imageNamed:@"icon-menu-sharing"];
+                    break;
+                case BlogDetailsRowEditSite:
+                    cell.textLabel.text = NSLocalizedString(@"Settings", nil);
+                    cell.imageView.image = [UIImage imageNamed:@"icon-menu-settings"];
+                    break;
+                case BlogDetailsRowPeople:
+                    cell.textLabel.text = NSLocalizedString(@"People", nil);
+                    cell.imageView.image = [UIImage imageNamed:@"icon-menu-people"];
+                    break;
+                default:
+                    break;
+            }
+            break;
+        }
     }
 }
 
@@ -374,12 +385,16 @@ NSInteger const BlogDetailsRowCountForSectionAppearance = 1;
                     break;
             }
             break;
+
         case TableViewSectionConfigurationType: {
             NSInteger configurationRow = [self.configurationRows[indexPath.row] integerValue];
             switch (configurationRow) {
             	case BlogDetailsRowSharing:
                 	[self showSharingForBlog:self.blog];
                 	break;
+                case BlogDetailsRowPeople:
+                    [self showPeopleForBlog:self.blog];
+                    break;
                 case BlogDetailsRowEditSite:
                     [self showSettingsForBlog:self.blog];
                     break;
@@ -463,6 +478,14 @@ NSInteger const BlogDetailsRowCountForSectionAppearance = 1;
 
 - (void)showSharingForBlog:(Blog *)blog {
     SharingViewController *controller = [[SharingViewController alloc] initWithBlog:blog];
+    [self.navigationController pushViewController:controller animated:YES];
+}
+
+- (void)showPeopleForBlog:(Blog *)blog
+{
+    // TODO(@koke, 2015-11-02): add analytics
+    PeopleViewController *controller = [[UIStoryboard storyboardWithName:@"People" bundle:nil] instantiateInitialViewController];
+    controller.blog = blog;
     [self.navigationController pushViewController:controller animated:YES];
 }
 
