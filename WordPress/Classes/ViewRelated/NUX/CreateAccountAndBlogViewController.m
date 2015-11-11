@@ -1,71 +1,11 @@
-#import "CreateAccountAndBlogViewController.h"
-#import <EmailChecker/EmailChecker.h>
-#import <QuartzCore/QuartzCore.h>
-#import "SupportViewController.h"
-#import "WordPressComApi.h"
-#import "WPNUXBackButton.h"
-#import "WPNUXMainButton.h"
-#import "WPPostViewController.h"
-#import "WPWalkthroughTextField.h"
-#import "WPAsyncBlockOperation.h"
-#import "WPComLanguages.h"
-#import "WPWalkthroughOverlayView.h"
-#import "SelectWPComLanguageViewController.h"
-#import "WPNUXUtility.h"
-#import "WPWebViewController.h"
-#import "WPStyleGuide.h"
-#import "WPFontManager.h"
-#import "UILabel+SuggestSize.h"
-#import "WPAccount.h"
-#import "Blog.h"
-#import "WordPressComOAuthClient.h"
-#import "WordPressComServiceRemote.h"
-#import "AccountService.h"
-#import "BlogService.h"
-#import "ContextManager.h"
-#import "NSString+XMLExtensions.h"
-#import "Constants.h"
-
 #import "WordPress-Swift.h"
-
 #import <1PasswordExtension/OnePasswordExtension.h>
-
-
-@interface CreateAccountAndBlogViewController ()<UITextFieldDelegate,UIGestureRecognizerDelegate> {
-    // Page 1
-    WPNUXBackButton *_backButton;
-    UIButton *_helpButton;
-    UILabel *_titleLabel;
-    UILabel *_TOSLabel;
-    UILabel *_siteAddressWPComLabel;
-    WPWalkthroughTextField *_emailField;
-    WPWalkthroughTextField *_usernameField;
-    WPWalkthroughTextField *_passwordField;
-    UIButton *_onePasswordButton;
-    WPNUXMainButton *_createAccountButton;
-    WPWalkthroughTextField *_siteAddressField;
-
-    NSOperationQueue *_operationQueue;
-
-    BOOL _authenticating;
-    BOOL _keyboardVisible;
-    BOOL _shouldCorrectEmail;
-    BOOL _userDefinedSiteAddress;
-    CGFloat _keyboardOffset;
-    NSString *_defaultSiteUrl;
-
-    NSDictionary *_currentLanguage;
-
-    WPAccount *_account;
-}
-
-@end
 
 @implementation CreateAccountAndBlogViewController
 
 static CGFloat const CreateAccountAndBlogStandardOffset             = 15.0;
 static CGFloat const CreateAccountAndBlogMaxTextWidth               = 260.0;
-static CGFloat const CreateAccountAndBlogTextFieldWidth             = 320.0;
+CGFloat const CreateAccountAndBlogTextFieldWidth             = 320.0;
 static CGFloat const CreateAccountAndBlogTextFieldHeight            = 44.0;
 static CGFloat const CreateAccountAndBlogTextFieldPhoneHeight       = 38.0;
 static CGFloat const CreateAccountAndBlogiOS7StatusBarOffset        = 20.0;
@@ -299,8 +239,7 @@ static UIEdgeInsets const CreateAccountAndBlogHelpButtonPaddingPad  = {1.0, 0.0,
         _usernameField.returnKeyType = UIReturnKeyNext;
         [self.view addSubview:_usernameField];
     }
-
-    // Add Password
+    
     if (_passwordField == nil) {
         _passwordField = [[WPWalkthroughTextField alloc] initWithLeftViewImage:[UIImage imageNamed:@"icon-password-field"]];
         _passwordField.secureTextEntry = YES;
@@ -318,7 +257,7 @@ static UIEdgeInsets const CreateAccountAndBlogHelpButtonPaddingPad  = {1.0, 0.0,
         _passwordField.returnKeyType = UIReturnKeyNext;
         [self.view addSubview:_passwordField];
     }
-    
+
     // Add OnePassword
     if (_onePasswordButton == nil) {
         _onePasswordButton = [UIButton buttonWithType:UIButtonTypeCustom];
@@ -457,7 +396,7 @@ static UIEdgeInsets const CreateAccountAndBlogHelpButtonPaddingPad  = {1.0, 0.0,
     // Layout Password
     x = (viewWidth - CreateAccountAndBlogTextFieldWidth)/2.0;
     y = CGRectGetMaxY(_usernameField.frame) - 1;
-    _passwordField.frame = CGRectIntegral(CGRectMake(x, y, CreateAccountAndBlogTextFieldWidth, textFieldHeight));
+    [self configurePasswordField:x y:y textFieldHeight:textFieldHeight];
 
     // Layout Site Address
     x = (viewWidth - CreateAccountAndBlogTextFieldWidth)/2.0;
@@ -503,6 +442,11 @@ static UIEdgeInsets const CreateAccountAndBlogHelpButtonPaddingPad  = {1.0, 0.0,
     NSArray *controls = @[_titleLabel, _emailField, _usernameField, _passwordField,
                           _TOSLabel, _createAccountButton, _siteAddressField];
     [WPNUXUtility centerViews:controls withStartingView:_titleLabel andEndingView:_TOSLabel forHeight:viewHeight];
+}
+
+- (void)configurePasswordField:(CGFloat)x y:(CGFloat)y textFieldHeight:(CGFloat)textFieldHeight
+{
+    _passwordField.frame = CGRectIntegral(CGRectMake(x, y, CreateAccountAndBlogTextFieldWidth, textFieldHeight));
 }
 
 - (IBAction)helpButtonAction
@@ -575,7 +519,12 @@ static UIEdgeInsets const CreateAccountAndBlogHelpButtonPaddingPad  = {1.0, 0.0,
         [self showAllErrors];
         return;
     }
+    
+    [self actionNow];
+}
 
+- (void)actionNow
+{
     [self createUserAndSite];
 }
 
@@ -746,6 +695,101 @@ static UIEdgeInsets const CreateAccountAndBlogHelpButtonPaddingPad  = {1.0, 0.0,
     _createAccountButton.enabled = !authenticating;
     _onePasswordButton.enabled = !authenticating;
     [_createAccountButton showActivityIndicator:authenticating];
+}
+
+- (void)createBlog
+{
+    if (_authenticating) {
+        return;
+    }
+    
+    // The site must be validated prior to making an account. Without validation,
+    // the situation could exist where a user account is created, but the site creation
+    // fails.
+    WPAsyncBlockOperation *siteValidation = [WPAsyncBlockOperation operationWithBlock:^(WPAsyncBlockOperation *operation) {
+        WordPressComServiceSuccessBlock blogValidationSuccess = ^(NSDictionary *responseDictionary) {
+            [operation didSucceed];
+        };
+        WordPressComServiceFailureBlock blogValidationFailure = ^(NSError *error) {
+            [operation didFail];
+            [self setAuthenticating:NO];
+            [self displayRemoteError:error];
+        };
+        
+        NSString *languageId = [_currentLanguage stringForKey:@"lang_id"];
+        
+        WordPressComApi *api = [WordPressComApi anonymousApi];
+        WordPressComServiceRemote *service = [[WordPressComServiceRemote alloc] initWithApi:api];
+        
+        [service validateWPComBlogWithUrl:[self getSiteAddressWithoutWordPressDotCom]
+                             andBlogTitle:[self generateSiteTitleFromUsername:_siteAddressField.text]
+                            andLanguageId:languageId
+                                  success:blogValidationSuccess
+                                  failure:blogValidationFailure];
+    }];
+    
+    WPAsyncBlockOperation *blogCreation = [WPAsyncBlockOperation operationWithBlock:^(WPAsyncBlockOperation *operation){
+        WordPressComServiceSuccessBlock createBlogSuccess = ^(NSDictionary *responseDictionary){
+            [WPAnalytics track:WPAnalyticsStatCreatedAccount];
+            [operation didSucceed];
+            
+            NSMutableDictionary *blogOptions = [[responseDictionary dictionaryForKey:@"blog_details"] mutableCopy];
+            if ([blogOptions objectForKey:@"blogname"]) {
+                [blogOptions setObject:[blogOptions objectForKey:@"blogname"] forKey:@"blogName"];
+                [blogOptions removeObjectForKey:@"blogname"];
+            }
+            
+            NSManagedObjectContext *context = [[ContextManager sharedInstance] mainContext];
+            AccountService *accountService = [[AccountService alloc] initWithManagedObjectContext:context];
+            BlogService *blogService = [[BlogService alloc] initWithManagedObjectContext:context];
+            WPAccount *defaultAccount = [accountService defaultWordPressComAccount];
+            
+            Blog *blog = [blogService findBlogWithXmlrpc:blogOptions[@"xmlrpc"] inAccount:defaultAccount];
+            if (!blog) {
+                blog = [blogService createBlogWithAccount:defaultAccount];
+                blog.xmlrpc = blogOptions[@"xmlrpc"];
+            }
+            blog.blogID = [blogOptions numberForKey:@"blogid"];
+            blog.blogName = [blogOptions[@"blogname"] stringByDecodingXMLCharacters];
+            blog.url = blogOptions[@"url"];
+            defaultAccount.defaultBlog = blog;
+            
+            [[ContextManager sharedInstance] saveContext:context];
+            
+            [accountService updateUserDetailsForAccount:defaultAccount success:nil failure:nil];
+            [blogService syncBlog:blog];
+            [WPAnalytics refreshMetadata];
+            [self setAuthenticating:NO];
+            [self dismissViewControllerAnimated:YES completion:nil];
+        };
+        WordPressComServiceFailureBlock createBlogFailure = ^(NSError *error) {
+            DDLogError(@"Failed creating blog: %@", error);
+            [self setAuthenticating:NO];
+            [operation didFail];
+            [self displayRemoteError:error];
+        };
+        
+        NSString *languageId = [_currentLanguage stringForKey:@"lang_id"];
+        
+        NSManagedObjectContext *context = [[ContextManager sharedInstance] mainContext];
+        AccountService *accountService = [[AccountService alloc] initWithManagedObjectContext:context];
+        WPAccount *defaultAccount = [accountService defaultWordPressComAccount];
+        
+        WordPressComApi *api = [defaultAccount restApi];
+        WordPressComServiceRemote *service = [[WordPressComServiceRemote alloc] initWithApi:api];
+        
+        [service createWPComBlogWithUrl:[self getSiteAddressWithoutWordPressDotCom]
+                           andBlogTitle:[self generateSiteTitleFromUsername:_usernameField.text]
+                          andLanguageId:languageId
+                      andBlogVisibility:WordPressComServiceBlogVisibilityPublic
+                                success:createBlogSuccess
+                                failure:createBlogFailure];
+    }];
+    
+    [blogCreation addDependency:siteValidation];
+    
+    [_operationQueue addOperation:siteValidation];
+    [_operationQueue addOperation:blogCreation];
 }
 
 - (void)createUserAndSite

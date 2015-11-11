@@ -76,3 +76,4 @@
 #import "WPWalkthroughTextField.h"
 #import "WPNUXMainButton.h"
 #import "WPNUXUtility.h"
+#import "CreateAccountAndBlogViewController.h"
